@@ -33,7 +33,7 @@ class layer:
   def back_propagation (self, learning:float, upstream_gradient:np.array):
     if self.activation_function == "RELU":
       self.deriv = np.where(self.output > 0, 1, 0)
-    if self.activation_function == "Tanh":
+    elif self.activation_function == "Tanh":
       self.deriv =  (1 - np.power(self.output, 2))
     else:
       self.deriv = np.ones_like(self.output)
@@ -55,14 +55,17 @@ class model:
     self.params = params
     self.sum_abselute_error = 0
     self.analytics={}
-    self.analytics["MAE"]=[]
+    self.analytics["MSE"]=[]
     self.n_features = n_features
     self.func_table = {
         "input":self.type_input,
         "output":self.type_output,
         "hidden":self.type_hidden,
         "random_b":self.random_b,
-        "random_w":self.random_w
+        "random_w":self.random_w,
+        "bias_fill_vals":self.bias_fill_vals,
+        "weights_fill_vals":self.weights_fill_vals
+
     }
     for i in range (len (self.params)):
         self.layer = self.params[i]
@@ -74,9 +77,22 @@ class model:
         biases_init()
         
         self.params[i]["layer_obj"]=layer(weights=self.weights, biases=self.biases, activation_function=params[i]["activation_function"], stage = self.layer["type"])
+  def bias_fill_vals (self):
+    rng = np.random.default_rng()
+    if self.layer["type"] == "output":
+      self.biases=size =np.full((1, 1),self.layer["bias_vals"])
+    else:
+      self.biases=size =np.full((1, self.layer["hidden_features"]), self.layer["bias_vals"])
+
+    
+  def weights_fill_vals(self):
+    self.weights = np.full((self.m, self.n), self.layer["weight_vals"])
+
+ 
+ 
   def random_w(self):
     rng = np.random.default_rng()
-    self.weights = rng.standard_normal(size=(self.m, self.n)) * np.sqrt(0.1 / 4)
+    self.weights = rng.standard_normal(size=(self.m, self.n)) * np.sqrt(2.0 / self.m)
   def random_b(self):
     rng = np.random.default_rng()
     if self.layer["type"] == "output":
@@ -98,9 +114,9 @@ class model:
 
   def loss_function(self, label:np.array, result:np.array):
     y = np.asarray(label)
-    individual_loss_gradient = 2*(result-y)
+    individual_loss_gradient = 2*(result-y)/self.batch_size
     self.sum_abselute_error = np.mean(self.sum_abselute_error+((result-y)**2))
-    return np.mean(individual_loss_gradient)
+    return individual_loss_gradient
 
 
   def train(self, y:np.array, x:np.array, epochs:int):
@@ -108,24 +124,23 @@ class model:
     y = np.asarray(y)
     rows,_=x.shape
     for epoch in range(epochs):
+        #print(f"epoch no {epoch}")
         for p in range(0, rows, self.batch_size):
             Y = y[p:p+(self.batch_size)]
             feed = x[p:p+(self.batch_size)]
             feed_out = [feed]
             for i in range(len(self.params)):
-                z = self.params[i]["layer_obj"].forward(feed_out[-1])
-                feed_out.append(z)
-            output = feed_out[-1]
-            loss_grad = self.loss_function(label=Y, result=output)
+                feed_out.append(self.params[i]["layer_obj"].forward(feed_out[-1]))
+            loss_grad = self.loss_function(label=Y, result=feed_out[-1])
             loss_grad = np.asarray(loss_grad)
             for i in range(len(self.params) - 1, -1, -1):
                 loss_grad = self.params[i]["layer_obj"].back_propagation(upstream_gradient=loss_grad, learning=self.learning)
         
-        self.analytics["MAE"].append(float(self.sum_abselute_error/rows))
+        self.analytics["MSE"].append(float(self.sum_abselute_error/rows))
         self.sum_abselute_error = 0
 
-  def MAE (self):
-    return (self.analytics["MAE"])
+  def MSE (self):
+    return (self.analytics["MSE"])
     
   def predict(self, x):
     feed_out = np.asarray(x)

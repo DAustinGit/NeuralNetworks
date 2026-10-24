@@ -3,14 +3,13 @@ from sklearn.model_selection import train_test_split
 import cupy as np
 import neuralNetworkCu as nn
 import matplotlib.pyplot as plt
+test_prediction = []
 
-df = pd.read_csv('https://raw.githubusercontent.com/dataprofessor/data/refs/heads/master/delaney_solubility_with_descriptors.csv')
-print (df.head())
+df = pd.read_csv('mol_properties.csv')
 
-Y = df['logS']   # Y is feature used for training
-X = df.drop('logS', axis=1)   #X is the feature we are predicting drop logS and axis = 1 --> work in coluns
-print (Y.head())
-print (X.head())
+Y = df['measured log(solubility:mol/L)']   # Y is feature used for training
+X = df.drop(['Compound_ID','measured log(solubility:mol/L)','SMILES'], axis=1)   #X is the feature we are predicting drop logS and axis = 1 --> work in coluns
+
 
 
 
@@ -19,6 +18,8 @@ X_train, X_test, Y_train, Y_test = train_test_split (X, Y, test_size= 0.20, rand
 x_train = X_train.to_numpy()
 x_test = X_test.to_numpy()
 Y_train = Y_train.to_numpy()
+Y_label_test =Y_test
+Y_label_train = Y_train
 Y_test = Y_test.to_numpy()
 y_max = np.max(Y_train)
 x_mean = np.mean(x_train, axis=0, keepdims=True)
@@ -34,7 +35,6 @@ x_test_scaled = (x_test-x_mean_test)/x_std_test
 Y_test_scaled = Y_test/y_max_test
 
 
-print (x_train_scaled)
 
 
 params = {
@@ -45,16 +45,18 @@ params = {
    4:{"type":"hidden" ,"biases_init":"random_b", "weights_init":"random_w", "hidden_features":200, "activation_function":"RELU"},
    5:{"type":"hidden" ,"biases_init":"random_b", "weights_init":"random_w", "hidden_features":200, "activation_function":"RELU"},
    6:{"type":"hidden" ,"biases_init":"random_b", "weights_init":"random_w", "hidden_features":200, "activation_function":"RELU"},
-   7:{"type":"hidden" ,"biases_init":"random_b", "weights_init":"random_w", "hidden_features":200, "activation_function":"Relu"},
-   8:{"type":"output" ,"biases_init":"random_b", "weights_init":"random_w", "hidden_features":200, "activation_function":"LINEAR"}
+   7:{"type":"hidden" ,"biases_init":"random_b", "weights_init":"random_w", "hidden_features":200, "activation_function":"RELU"},
+   8:{"type":"hidden" ,"biases_init":"random_b", "weights_init":"random_w", "hidden_features":200, "activation_function":"RELU"},
+   9:{"type":"hidden" ,"biases_init":"random_b", "weights_init":"random_w", "hidden_features":200, "activation_function":"RELU"},
+   10:{"type":"output" ,"biases_init":"bias_fill_vals", "bias_vals":-0.1, "weights_init":"random_w", "hidden_features":200, "activation_function":"LINEAR"}
 }
 
 
-pipeline = nn.model(params=params, n_features=4, learning_rate=1e-9, batch_size=1)
+pipeline = nn.model(params=params, n_features=8, learning_rate=5e-6, batch_size=32)
 print("training model...")
 Y_train = Y_train.reshape(-1, 1)
 Y_test = Y_test.reshape(-1, 1)
-pipeline.train(x=x_train_scaled, y=Y_train, epochs=2000, )
+pipeline.train(x=x_train_scaled, y=Y_train, epochs=1000)
 
 
 rows_test,_=x_test_scaled.shape
@@ -63,21 +65,43 @@ rows_train,_=x_train_scaled.shape
 
 
 for i in range (rows_test):
- print (f" predicted test y: {pipeline.predict (x_test_scaled[i:i+1])} label: {Y_test[i]}")
+  test_pred = pipeline.predict (x_test_scaled[i:i+1])
+  print (f" predicted test y: {test_pred} label: {Y_test[i]}")
+  test_prediction.append(float(test_pred[0,0]))
+
+
 rows,_=x_train_scaled.shape
-
+train_prediction = []
 for i in range (rows_train):
-  print (f" predicted train y: {pipeline.predict (x_train_scaled[i:i+1])} label: {Y_train[i]}")
+  train_pred = pipeline.predict (x_train_scaled[i:i+1])
+  print (f" predicted train y: {train_pred} label: {Y_train[i]}")
+  train_prediction.append(float(train_pred[0,0]))
 
 
+fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(10, 6))
+
+MSE = pipeline.MSE()
+
+# --- FIRST PLOT: Left Side ---
+axes[0].plot(MSE, marker='o', color='purple')
+
+axes[0].set_title("Mean Squared Error by Epoch")
+axes[0].set_xlabel("Epochs")
+axes[0].set_ylabel("MSE")
+axes[0].grid(True)
+
+axes[1].scatter(Y_label_test, test_prediction, marker='o', color='purple')
 
 
-MAE = pipeline.MAE()
-print (f"mae {MAE}")
-plt.plot(MAE, marker='o', color='purple')
+axes[1].set_title("test set Experimental logS vs Predicted logS")
+axes[1].set_xlabel("Experimental LogS")
+axes[1].set_ylabel("Predicted logS")
+axes[1].grid(True)
+axes[2].scatter(Y_label_train, train_prediction, marker='o', color='purple')
+axes[2].set_title("train set Experimental logS vs Predicted logS")
+axes[2].set_xlabel("Experimental LogS")
+axes[2].set_ylabel("Predicted logS")
+axes[2].grid(True)
 
-plt.title("X-Axis Automatically Maps to List Index")
-plt.xlabel("Index (0 to 4)")
-plt.ylabel("Value")
-plt.grid(True)
+plt.tight_layout()
 plt.show()
