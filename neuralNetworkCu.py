@@ -1,6 +1,6 @@
 #import numpy as np
 import cupy as np
-import math
+import pandas as pd
 #input_values = np.array([[1,2,5]])
 rng = np.random.default_rng()
 max_itterations = 400
@@ -48,7 +48,7 @@ class layer:
     self.biases = self.biases-(learning*np.sum(self.delta, axis=0, keepdims=True))
     return np.dot(self.delta, self.weights.T)
 class model:
-  def __init__ (self, params:dict, n_features:int, learning_rate:float, batch_size:int):
+  def __init__ (self, params:dict, n_features:int=8, learning_rate:float = 1e-6, batch_size:int=32):
     self.batch_size=batch_size
     self.pipeline = []
     self.learning =learning_rate
@@ -57,6 +57,7 @@ class model:
     self.analytics={}
     self.analytics["MSE"]=[]
     self.n_features = n_features
+    
     self.func_table = {
         "input":self.type_input,
         "output":self.type_output,
@@ -67,15 +68,17 @@ class model:
         "weights_fill_vals":self.weights_fill_vals
 
     }
+
     for i in range (len (self.params)):
         self.layer = self.params[i]
+        if "layer_obj" in self.layer:
+          continue
         layer_type = self.func_table.get(self.layer["type"])
         layer_type()
         weights_init = self.func_table.get(self.layer["weights_init"])
         weights_init()
         biases_init = self.func_table.get(self.layer["biases_init"])
         biases_init()
-        
         self.params[i]["layer_obj"]=layer(weights=self.weights, biases=self.biases, activation_function=params[i]["activation_function"], stage = self.layer["type"])
   def bias_fill_vals (self):
     rng = np.random.default_rng()
@@ -139,14 +142,50 @@ class model:
         self.analytics["MSE"].append(float(self.sum_abselute_error/rows))
         self.sum_abselute_error = 0
 
+
   def MSE (self):
     return (self.analytics["MSE"])
+
+  def get_MSE (self):
+    df = pd.read_csv('analytics.csv')
+    return (df['MSE'])
     
   def predict(self, x):
     feed_out = np.asarray(x)
     for i in range(len(self.params)):
       feed_out = self.params[i]["layer_obj"].forward(feed_out)
     return feed_out
+
+  def dump(self, filepath="model.npz"):
+    
+    try:
+      save_dict ={}
+      df = pd.DataFrame.from_dict(self.params, orient='index')
+      df_analysis = pd.DataFrame(self.analytics)
+      df = df.drop(columns=["layer_obj"], errors='ignore')
+      df.to_csv('model.csv', index_label='index')
+      df_analysis.to_csv('analytics.csv', index=False)
+      for i in range (len(self.params)):
+        save_dict[f'w_{i}'] = self.params[i]["layer_obj"].weights
+        save_dict[f'b_{i}'] = self.params[i]["layer_obj"].biases
+      np.savez_compressed(filepath, **save_dict)
+    except Exception as e:
+      print (e) 
+
+  @classmethod
+  def load (cls, filepath="model.npz", n_features:int=8):
+    
+    try:
+      df = pd.read_csv('model.csv', index_col='index')
+      params = {int(k): v for k, v in df.to_dict(orient='index').items()}
+      print (f"params  {params}")
+      data = np.load(filepath)
+      for i in range (len(params)):
+        params[i]["layer_obj"] = layer(weights=data[f'w_{i}'], biases=data[f'b_{i}'],activation_function=params[i]["activation_function"], stage = params[i]["type"]) 
+      return cls(params=params, n_features=n_features)
+    except Exception as e:
+          print (e)  
+
 
 
 

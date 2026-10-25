@@ -56,11 +56,26 @@ pipeline = nn.model(params=params, n_features=8, learning_rate=5e-6, batch_size=
 print("training model...")
 Y_train = Y_train.reshape(-1, 1)
 Y_test = Y_test.reshape(-1, 1)
-pipeline.train(x=x_train_scaled, y=Y_train, epochs=1000)
+pipeline.train(x=x_train_scaled, y=Y_train, epochs=100)
 
 
 rows_test,_=x_test_scaled.shape
 rows_train,_=x_train_scaled.shape
+def r2(predY, expY):
+    # Convert inputs to numpy arrays to allow vector operations
+    predY = np.array(predY)
+    expY = np.array(expY)
+    
+    # 1. Calculate Total Sum of Squares (TSS)
+    sum_of_squares = np.sum((expY - np.mean(expY))**2)
+    
+    # 2. Calculate Residual Sum of Squares (RSS) vectorized (no loop needed)
+    sum_of_squared_residuals = np.sum((expY - predY)**2)
+    
+    # 3. Calculate R²
+    R2 = 1 - (sum_of_squared_residuals / sum_of_squares)
+    
+    return R2
 
 
 
@@ -78,11 +93,16 @@ for i in range (rows_train):
   train_prediction.append(float(train_pred[0,0]))
 
 
-fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(10, 6))
+fig, axes = plt.subplots(nrows=1, ncols=4, figsize=(10, 6))
 
 MSE = pipeline.MSE()
+DMSE = []
+for i in range (1,len(MSE)):
+  dMSE2 = (MSE[i]-MSE[-1])**2
+  DMSE.append(dMSE2)
 
-# --- FIRST PLOT: Left Side ---
+
+
 axes[0].plot(MSE, marker='o', color='purple')
 
 axes[0].set_title("Mean Squared Error by Epoch")
@@ -103,5 +123,18 @@ axes[2].set_xlabel("Experimental LogS")
 axes[2].set_ylabel("Predicted logS")
 axes[2].grid(True)
 
+axes[3].plot(DMSE, marker='o', color='purple')
+axes[3].set_title("DMSE")
+axes[3].set_xlabel("epochs")
+axes[3].set_ylabel("change in MSE")
+axes[3].grid(True)
+
+R2_test = r2(test_prediction, Y_label_test)
+R2_train = r2(train_prediction, Y_label_train)
+print(f"R2 train = {R2_train}")
+print(f"R2 test = {R2_test}")
+print(f"R2 difference = {R2_train-R2_test}")
 plt.tight_layout()
 plt.show()
+
+pipeline.dump()

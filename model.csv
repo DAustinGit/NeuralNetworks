@@ -1,0 +1,12 @@
+index,type,biases_init,weights_init,hidden_features,activation_function,bias_vals
+0,input,random_b,random_w,200,RELU,
+1,hidden,random_b,random_w,200,RELU,
+2,hidden,random_b,random_w,200,RELU,
+3,hidden,random_b,random_w,200,RELU,
+4,hidden,random_b,random_w,200,RELU,
+5,hidden,random_b,random_w,200,RELU,
+6,hidden,random_b,random_w,200,RELU,
+7,hidden,random_b,random_w,200,RELU,
+8,hidden,random_b,random_w,200,RELU,
+9,hidden,random_b,random_w,200,RELU,
+10,output,bias_fill_vals,random_w,200,LINEAR,-0.1
